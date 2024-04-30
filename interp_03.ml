@@ -510,7 +510,29 @@ type lexpr
   | App of lexpr * lexpr
   | Trace of lexpr
 
-let desugar (p : top_prog) : lexpr = Unit (* TODO *)
+let rec desugar (p : top_prog) : lexpr = 
+  match p with
+  | [] -> Unit
+  (*Trace*)
+  | (func_name, func_arguments, (Trace (Num e))) :: rest -> App(Fun (func_name, desugar rest), desugar_args func_arguments)
+  (*Addition*)
+  | (func_name, func_arguments, (Bop (Add, Num x, Num y))) :: rest -> App(Fun(func_name, desugar rest), Num (x + y))
+  | _ -> Unit
+
+and desugar_args func_arguments : lexpr = 
+  match func_arguments with
+  | [] -> Unit
+  | _ -> Unit
+
+
+let Some p = (parse_top_prog "let x = trace 10") 
+let _ = assert (desugar p = App(Fun ("x", Unit), Trace (Num 10)))
+
+let Some p = (parse_top_prog "let k x y = x let _ = trace (k 5 10)") 
+let _ = assert (desugar p = App(Fun ("k", App (Fun ("_", Unit), Trace (App (App (Var "k", Num 5), Num 10)))), Fun ("x", Fun ("y", Var "x"))))
+
+let Some p = parse_top_prog "let _ = let _ = trace 10 in 10"
+let _ = assert (desugar p = App (Fun ("_", Unit), App (Fun ("_", Num 10), Trace (Num 10))))
 let translate (e : lexpr) : stack_prog = [] (* TODO *)
 let serialize (p : stack_prog) : string = "" (* TODO *)
 
