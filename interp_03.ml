@@ -557,7 +557,31 @@ let rec translate (e : lexpr) : stack_prog =
   | Bop (Add, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Add]
   | Bop (Sub, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Sub]
   | Bop (Mul, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Mul]
-  | Bop (Div, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Div]
+  | Bop (Div, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Div]  
+  (*Negate*)
+  | Uop (Neg, e) -> translate e @ [Push (Num 0); Sub]
+  (*Not*)
+  | Uop (Not, e) -> translate e @ [If ([Push (Bool false)],[Push (Bool true)])] 
+  (*Less Than*)
+  | Bop (Lt, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Lt]
+  (*Less Than or Equal*)
+  | Bop (Lte, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Swap; Lt; If ([Push (Bool false)],[Push (Bool true)])]
+  (*Greater Than*)
+  | Bop (Gt, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Swap; Lt]
+  (*Greater Than or Equal*)
+  | Bop (Gte, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Lt; If ([Push (Bool false)],[Push (Bool true)])]
+  (*Equal*)
+  | Bop (Eq, e1, e2) -> let exp2 = translate e2 in let exp1 = translate e1 in 
+    (match exp2, exp1 with
+    | [Push (Num m)], [Push (Num n)] -> exp2 @ exp1 @ [Swap; Lt; If ([Push (Bool false)],[Push (Num m); Push (Num n); Lt; If ([Push (Bool false)],[Push (Bool true)])])]
+    | _ -> exp2 @ check_int @ exp1 @ check_int
+    ) 
+  (*Not Equal*)                                                                                       
+  | Bop (Neq, e1, e2) -> let exp2 = translate e2 in let exp1 = translate e1 in 
+    (match exp2, exp1 with
+    | [Push (Num m)], [Push (Num n)] -> exp2 @ exp1 @ [Swap; Lt; If ([Push (Bool true)],[Push (Num m); Push (Num n); Lt; If ([Push (Bool true)],[Push (Bool false)])])]
+    | _ -> exp2 @ check_int @ exp1 @ check_int
+    ) 
   (*And*)
   | Bop (And, e1, e2) ->
     let exp1 = translate e1 in 
@@ -586,22 +610,6 @@ let rec translate (e : lexpr) : stack_prog =
         )
     | _ -> exp1 @ [If([],[])] (*will panic bc non-boolean*)
     )  
-  (*Negate*)
-  | Uop (Neg, e) -> translate e @ [Push (Num 0); Sub]
-  (*Not*)
-  | Uop (Not, e) -> translate e @ [If ([Push (Bool false)],[Push (Bool true)])] 
-  (*Less Than*)
-  | Bop (Lt, e1, e2) -> translate e2 @ check_int @ translate e1 @ check_int @ [Lt]
-  (*Less Than or Equal*)
-  | Bop (Lte, e1, e2) -> translate e2 @ check_int @ translate e1 @ check_int @ [Lt]
-  (*Greater Than*)
-  | Bop (Gt, e1, e2) -> translate e2 @ translate e1 @ [Swap; Lt]
-  (*Greater Than or Equal*)
-  | Bop (Gte, e1, e2) -> translate e2 @ translate e1 @ [Lt]
-  (*Equal*)
-  | Bop (Eq, e1, e2) -> translate e2 @ translate e1 @ [Lt]
-  (*Not Equal*)
-  | Bop (Neq, e1, e2) -> translate e2 @ translate e1 @ [Lt]
   (*Extraneous*)
   | Var x -> [Lookup x]
   | Ife (cond, thn, els) -> translate cond @ [If (translate thn, translate els)]
