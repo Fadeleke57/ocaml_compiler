@@ -542,35 +542,71 @@ let _ = assert (desugar p = App(Fun ("k", App (Fun ("_", Unit), Trace (App (App 
 let Some p = parse_top_prog "let _ = let _ = trace 10 in 10"
 let _ = assert (desugar p = App (Fun ("_", Unit), App (Fun ("_", Num 10), Trace (Num 10))))
 *)
-  
+ 
+let check_int = [Push (Num 0); Add]
+
 let rec translate (e : lexpr) : stack_prog =
   match e with
-  (*Values*)
+  (*Base Values*)
   | Num n -> [Push (Num n)]
   | Bool b -> [Push (Bool b)]
   | Unit -> [Push Unit]
-  | Var x -> [Lookup x]
   (*Trace*)
-  | Trace e -> translate e @ [Trace]
-  | Uop (op, e) -> translate e @ translate_uop op
-  | Bop (op, e1, e2) -> translate e2 @ translate e1 @ translate_bop op
+  | Trace e -> translate e @ [Trace; Push Unit]
+  (*Binary arithmetic ops*)
+  | Bop (Add, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Add]
+  | Bop (Sub, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Sub]
+  | Bop (Mul, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Mul]
+  | Bop (Div, e1, e2) -> translate e2 @ check_int @ translate e1 @ [Div]
+  (*And*)
+  | Bop (And, e1, e2) ->
+    let exp1 = translate e1 in 
+    (match exp1 with
+    | [Push (Bool false)] -> [Push (Bool false)] (*short circuit when first is false*)
+    | [Push (Bool true)] -> (
+      let exp2 = translate e2 in
+        match exp2 with
+        | [Push (Bool true)] -> [Push (Bool true)] (*both true*)
+        | [Push (Bool false)] -> [Push (Bool false)] (*first is true second is false*)
+        | _ -> exp2 @ [If([],[])] (*will panic bc non-boolean*)
+        )
+    | _ -> exp1 @ [If([],[])] (*will panic bc non-boolean*)
+    )
+  (*Or*)
+  | Bop (Or, e1, e2) ->
+    let exp1 = translate e1 in  
+    (match exp1 with
+    | [Push (Bool true)] -> [Push (Bool true)] (*short circuit when first is false*)
+    | [Push (Bool false)] -> (
+      let exp2 = translate e2 in
+        match exp2 with
+        | [Push (Bool true)] -> [Push (Bool true)] (*first is false second is true*)
+        | [Push (Bool false)] -> [Push (Bool false)] (*both false*)
+        | _ -> exp2 @ [If([],[])] (*will panic bc non-boolean*)
+        )
+    | _ -> exp1 @ [If([],[])] (*will panic bc non-boolean*)
+    )  
+  (*Negate*)
+  | Uop (Neg, e) -> translate e @ [Push (Num 0); Sub]
+  (*Not*)
+  | Uop (Not, e) -> translate e @ [If ([Push (Bool false)],[Push (Bool true)])] 
+  (*Less Than*)
+  | Bop (Lt, e1, e2) -> translate e2 @ check_int @ translate e1 @ check_int @ [Lt]
+  (*Less Than or Equal*)
+  | Bop (Lte, e1, e2) -> translate e2 @ check_int @ translate e1 @ check_int @ [Lt]
+  (*Greater Than*)
+  | Bop (Gt, e1, e2) -> translate e2 @ translate e1 @ [Swap; Lt]
+  (*Greater Than or Equal*)
+  | Bop (Gte, e1, e2) -> translate e2 @ translate e1 @ [Lt]
+  (*Equal*)
+  | Bop (Eq, e1, e2) -> translate e2 @ translate e1 @ [Lt]
+  (*Not Equal*)
+  | Bop (Neq, e1, e2) -> translate e2 @ translate e1 @ [Lt]
+  (*Extraneous*)
+  | Var x -> [Lookup x]
   | Ife (cond, thn, els) -> translate cond @ [If (translate thn, translate els)]
-  | Fun (arg, body) -> [Fun (arg, translate body @ [Return])]
   | App (f, arg) -> translate f @ translate arg @ [Call]
-
-and translate_uop op =
-  match op with
-  | Neg -> [Sub]
-  | Not -> [Sub] 
-
-and translate_bop op =
-  match op with
-  | Add -> [Add]
-  | Sub -> [Sub]
-  | Mul -> [Mul]
-  | Div -> [Div]
-  | Lt -> [Lt]
-  | _ -> failwith "Operation not implemented"
+  | Fun (arg, body) -> [Fun (arg, translate body @ [Return])]
 
 let rec assign_name (id : char list) (acc : string) : string =
   match id with
