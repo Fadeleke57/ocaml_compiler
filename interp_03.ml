@@ -610,17 +610,20 @@ let rec translate (e : lexpr) : stack_prog =
         )
     | _ -> exp1 @ [If([],[])] (*will panic bc non-boolean*)
     )  
-  (*Extraneous*)
-  | Var x -> [Lookup x]
+  (*If else*)
   | Ife (cond, thn, els) -> translate cond @ [If (translate thn, translate els)]
-  | App (f, arg) -> translate f @ translate arg @ [Call]
-  | Fun (arg, body) -> [Fun (arg, translate body @ [Return])]
+  (*Function Application*)
+  | App (f, arg) -> translate arg @ translate f @ [Call]
+  | Var x -> [Lookup x]
+  | Fun (arg, body) -> [Fun (arg, [Swap; Assign arg] @ translate body @ [Swap; Return])]
 
 let rec assign_name (id : char list) (acc : string) : string =
   match id with
   | [] -> acc
-  | '_' :: rest -> assign_name rest (acc ^ "C")
+  | '_' :: rest -> assign_name rest (acc ^ "BK")
   | id' :: rest -> assign_name rest (acc ^ "A" ^ (String.make 1 (Char.chr ((Char.code id') - 32)))) 
+
+let indent level = String.make (level * 3) ' '  (* 4 spaces per indentation level *)
 
 let rec serialize (p : stack_prog) : string =
   String.concat " "
@@ -641,7 +644,7 @@ let rec serialize (p : stack_prog) : string =
       | Call -> "call"
       | Return -> "return"
       | Assign x -> "assign " ^ assign_name (explode x) ""
-      | _ -> failwith "Command not supported"
+      | Swap -> "swap"
       ) p)
 
 let compile (s : string) : string option =
