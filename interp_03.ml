@@ -510,20 +510,27 @@ type lexpr
   | App of lexpr * lexpr
   | Trace of lexpr
 
-let rec desugar (p : top_prog) : lexpr = 
-  match p with
-  | [] -> Unit
-  (*Trace*)
-  | (func_name, func_arguments, (Trace (Num e))) :: rest -> App(Fun (func_name, desugar rest), desugar_args func_arguments)
-  (*Addition*)
-  | (func_name, func_arguments, (Bop (Add, Num x, Num y))) :: rest -> App(Fun(func_name, desugar rest), Num (x + y))
-  | _ -> Unit
+let rec expr_to_lexpr (e : expr) : lexpr =
+  match e with
+  | Unit -> Unit
+  | Num n -> Num n
+  | Bool b -> Bool b
+  | Var x -> Var x
+  | Uop (op, e) -> Uop (op, expr_to_lexpr e)
+  | Bop (op, e1, e2) -> Bop (op, expr_to_lexpr e1, expr_to_lexpr e2)
+  | Fun (args, e) -> List.fold_right (fun arg body -> Fun (arg, body)) args (expr_to_lexpr e)
+  | App (e1, e2) -> App (expr_to_lexpr e1, expr_to_lexpr e2)
+  | Let (x, args, e1, e2) -> App (Fun (x, expr_to_lexpr e2), List.fold_right (fun arg body -> Fun (arg, body)) args (expr_to_lexpr e1))
+  | Ife (e1, e2, e3) -> Ife (expr_to_lexpr e1, expr_to_lexpr e2, expr_to_lexpr e3)
+  | Trace e -> Trace (expr_to_lexpr e)
 
-and desugar_args func_arguments : lexpr = 
-  match func_arguments with
+let rec desugar_fun_defs defs =
+  match defs with
   | [] -> Unit
-  | _ -> Unit
+  | (f, args, expr) :: rest -> let nested_fun = List.fold_right (fun arg body -> Fun (arg, body)) args (expr_to_lexpr expr) in App (Fun (f, desugar_fun_defs rest), nested_fun)
 
+let desugar (p : top_prog) : lexpr = (*main*)
+  desugar_fun_defs p
 
 let Some p = (parse_top_prog "let x = trace 10") 
 let _ = assert (desugar p = App(Fun ("x", Unit), Trace (Num 10)))
@@ -533,6 +540,7 @@ let _ = assert (desugar p = App(Fun ("k", App (Fun ("_", Unit), Trace (App (App 
 
 let Some p = parse_top_prog "let _ = let _ = trace 10 in 10"
 let _ = assert (desugar p = App (Fun ("_", Unit), App (Fun ("_", Num 10), Trace (Num 10))))
+
 let translate (e : lexpr) : stack_prog = [] (* TODO *)
 let serialize (p : stack_prog) : string = "" (* TODO *)
 
