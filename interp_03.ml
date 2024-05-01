@@ -532,6 +532,7 @@ let rec desugar_fun_defs defs =
 let desugar (p : top_prog) : lexpr = (*main*)
   desugar_fun_defs p
 
+(*
 let Some p = (parse_top_prog "let x = trace 10") 
 let _ = assert (desugar p = App(Fun ("x", Unit), Trace (Num 10)))
 
@@ -540,9 +541,64 @@ let _ = assert (desugar p = App(Fun ("k", App (Fun ("_", Unit), Trace (App (App 
 
 let Some p = parse_top_prog "let _ = let _ = trace 10 in 10"
 let _ = assert (desugar p = App (Fun ("_", Unit), App (Fun ("_", Num 10), Trace (Num 10))))
+*)
+  
+let rec translate (e : lexpr) : stack_prog =
+  match e with
+  (*Values*)
+  | Num n -> [Push (Num n)]
+  | Bool b -> [Push (Bool b)]
+  | Unit -> [Push Unit]
+  | Var x -> [Lookup x]
+  (*Trace*)
+  | Trace e -> translate e @ [Trace]
+  | Uop (op, e) -> translate e @ translate_uop op
+  | Bop (op, e1, e2) -> translate e2 @ translate e1 @ translate_bop op
+  | Ife (cond, thn, els) -> translate cond @ [If (translate thn, translate els)]
+  | Fun (arg, body) -> [Fun (arg, translate body @ [Return])]
+  | App (f, arg) -> translate f @ translate arg @ [Call]
 
-let translate (e : lexpr) : stack_prog = [] (* TODO *)
-let serialize (p : stack_prog) : string = "" (* TODO *)
+and translate_uop op =
+  match op with
+  | Neg -> [Sub]
+  | Not -> [Sub] 
+
+and translate_bop op =
+  match op with
+  | Add -> [Add]
+  | Sub -> [Sub]
+  | Mul -> [Mul]
+  | Div -> [Div]
+  | Lt -> [Lt]
+  | _ -> failwith "Operation not implemented"
+
+let rec assign_name (id : char list) (acc : string) : string =
+  match id with
+  | [] -> acc
+  | '_' :: rest -> assign_name rest (acc ^ "C")
+  | id' :: rest -> assign_name rest (acc ^ "A" ^ (String.make 1 (Char.chr ((Char.code id') - 32)))) 
+
+let rec serialize (p : stack_prog) : string =
+  String.concat " "
+    (List.map (fun cmd ->
+      match cmd with
+      | Push (Num n) -> "push " ^ string_of_int n
+      | Push (Bool b) -> "push " ^ (if b then "true" else "false")
+      | Push Unit -> "push unit"
+      | Lookup x -> "  lookup " ^ assign_name (explode x) ""
+      | Trace -> "trace"
+      | Add -> "add"
+      | Sub -> "sub"
+      | Mul -> "mul"
+      | Div -> "div"
+      | Lt -> "lt"
+      | If (p1, p2) -> "if " ^ serialize p1 ^ " else " ^ serialize p2 ^ " end"
+      | Fun (arg, p) -> "fun " ^ assign_name (explode arg) "" ^ " begin " ^ "\n  " ^ serialize p ^ "\n" ^ "end\n"
+      | Call -> "call"
+      | Return -> "return"
+      | Assign x -> "assign " ^ assign_name (explode x) ""
+      | _ -> failwith "Command not supported"
+      ) p)
 
 let compile (s : string) : string option =
   match parse_top_prog s with
