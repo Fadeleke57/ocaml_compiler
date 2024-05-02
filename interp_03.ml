@@ -625,7 +625,6 @@ let rec assign_name (id : char list) (acc : string) : string =
 
 let indent level = String.make (level * 4) ' '  (* 4 spaces per indentation level *)
 
-(* Recursive serialize function with indentation *)
 let rec serialize ?(level=0) (p : stack_prog) : string =
   List.fold_left (fun acc cmd ->
     acc ^ "\n" ^ (indent level) ^
