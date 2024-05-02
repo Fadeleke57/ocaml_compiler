@@ -623,29 +623,31 @@ let rec assign_name (id : char list) (acc : string) : string =
   | '_' :: rest -> assign_name rest (acc ^ "BK")
   | id' :: rest -> assign_name rest (acc ^ "A" ^ (String.make 1 (Char.chr ((Char.code id') - 32)))) 
 
-let indent level = String.make (level * 3) ' '  (* 4 spaces per indentation level *)
+let indent level = String.make (level * 4) ' '  (* 4 spaces per indentation level *)
 
-let rec serialize (p : stack_prog) : string =
-  String.concat " "
-    (List.map (fun cmd ->
-      match cmd with
+(* Recursive serialize function with indentation *)
+let rec serialize ?(level=0) (p : stack_prog) : string =
+  List.fold_left (fun acc cmd ->
+    acc ^ "\n" ^ (indent level) ^
+    (match cmd with
       | Push (Num n) -> "push " ^ string_of_int n
       | Push (Bool b) -> "push " ^ (if b then "true" else "false")
       | Push Unit -> "push unit"
-      | Lookup x -> "  lookup " ^ assign_name (explode x) ""
+      | Lookup x -> "lookup " ^ (assign_name (explode x) "")
       | Trace -> "trace"
       | Add -> "add"
       | Sub -> "sub"
       | Mul -> "mul"
       | Div -> "div"
       | Lt -> "lt"
-      | If (p1, p2) -> "if " ^ serialize p1 ^ " else " ^ serialize p2 ^ " end"
-      | Fun (arg, p) -> "fun " ^ assign_name (explode arg) "" ^ " begin " ^ "\n  " ^ serialize p ^ "\n" ^ "end\n"
+      | If (p1, p2) -> "if" ^ serialize ~level:(level+1) p1 ^ "\n" ^ (indent level) ^ "else" ^ serialize ~level:(level+1) p2 ^ "\n" ^ (indent level) ^ "end"
+      | Fun (arg, p) -> "fun C begin" ^  serialize ~level:(level+1) p ^ "\n" ^ (indent level) ^ "end"
       | Call -> "call"
       | Return -> "return"
-      | Assign x -> "assign " ^ assign_name (explode x) ""
+      | Assign x -> "assign " ^ (assign_name (explode x) "")
       | Swap -> "swap"
-      ) p)
+    )
+  ) "" p
 
 let compile (s : string) : string option =
   match parse_top_prog s with
