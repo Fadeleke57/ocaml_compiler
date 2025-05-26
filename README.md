@@ -10,7 +10,7 @@ The project aims to compile a high-level, OCaml-like syntax into a stack-based i
 
 ### Directory Structure
 
-* `fadeleke57-ocaml_compiler/`: The root directory of the project.
+* `ocaml_compiler/`: The root directory of the project.
     * `README.md`: A brief introduction to the compiler.
     * `base_interp.ml`: An OCaml script for interpreting stack programs from standard input.
     * `compile.ml`: An OCaml script for compiling high-level programs from standard input into stack programs.
