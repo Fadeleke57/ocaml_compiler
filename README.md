@@ -1,4 +1,4 @@
-Breakdown of the project's structure and its core components:
+Breakdown of the project's structure and its core components (Ad-hoc made by copying and pasting this repo's content into Gemini):
 
 ---
 
